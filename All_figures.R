@@ -3,10 +3,10 @@ library(DESeq2)
 library(ggplot2)
 library(VennDiagram)
 library(org.Sc.sgd.db)
-setwd("/media/barbitoff/DATA/Working issues/FizGen/Translation and Genome/rnaseq/paper/code_revamp")
+setwd("/media/barbitoff/DATA/Working issues/FizGen/Translation and Genome/rnaseq/paper/sup35n_expression_analysis/")
 
 # Count matrix import
-countData <- read.csv('reatureCounts_sup35.tsv', header = TRUE, sep = "\t")
+countData <- read.csv('featureCounts_sup35.tsv', header = TRUE, sep = "\t")
 dim(countData)
 сutData <- countData[, c(7:16)]
 rownames(сutData) = countData$Geneid
@@ -174,14 +174,30 @@ goplot(gomf_up)
 dotplot(gomf_up) 
 write.table(gomf_up,"UP_35_lfc0_MF.csv",quote = F,sep = "\t",row.names = T)
 
+
+### Figure 4
+qpcr_df <- read.csv('qPCR_data.csv', header = TRUE, sep = "\t")
+ggplot(qpcr_df, aes(x=Gene, y= Copy_number, fill=Sample))+ 
+  scale_fill_brewer(palette = "Dark2")+ 
+  geom_boxplot() + geom_point() + theme_bw() + 
+  facet_wrap(vars(Primers), scales = "free")
+
+wilcox.test(Copy_number ~ Gene, qpcr_df[grepl('CDC20', qpcr_df$Gene), ])
+wilcox.test(Copy_number ~ Gene, qpcr_df[grepl('CDC23', qpcr_df$Gene), ])
+wilcox.test(Copy_number ~ Gene, qpcr_df[grepl('CDC28', qpcr_df$Gene), ])
+wilcox.test(Copy_number ~ Gene, qpcr_df[grepl('FKH1', qpcr_df$Gene), ])
+wilcox.test(Copy_number ~ Gene, qpcr_df[grepl('SUP35', qpcr_df$Gene), ])
+wilcox.test(Copy_number ~ Gene, qpcr_df[grepl('SUP45', qpcr_df$Gene), ])
+
+
 ### Figure 5
-proteomics_de <- read.table('DE_sup35_Proteom_normal.csv', sep=',', row.names=1, header=T)
+proteomics_de <- read.table('DA_Sup35_proteomics.tsv', sep='\t', row.names=1, header=T)
 head(proteomics_de)
 
 proteomics_de$regulation <- "none"
-proteomics_de$regulation[proteomics_de$logFC > 2 & 
+proteomics_de$regulation[proteomics_de$logFC > 0.5 & 
                            proteomics_de$adj.P.Val < 0.05] <- "up"
-proteomics_de$regulation[proteomics_de$logFC < -2 & 
+proteomics_de$regulation[proteomics_de$logFC < -0.5 & 
                            proteomics_de$adj.P.Val < 0.05] <- "down"
 proteomics_de$volcano_label <- rownames(proteomics_de)
 proteomics_de$volcano_label[proteomics_de$regulation == 'none'] = NA
