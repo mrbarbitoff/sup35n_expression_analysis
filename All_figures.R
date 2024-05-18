@@ -3,7 +3,6 @@ library(DESeq2)
 library(ggplot2)
 library(VennDiagram)
 library(clusterProfiler)
-library(org.Sc.sgd.db)
 library(ggpubr)
 library(corrgram)
 library(RColorBrewer)
@@ -12,6 +11,7 @@ library(ggpmisc)
 library(dplyr)
 library(tidyverse)
 library(cowplot)
+library(org.Sc.sgd.db)
 setwd("/media/barbitoff/DATA/Working issues/FizGen/Translation and Genome/rnaseq/paper/sup35n_expression_analysis/")
 
 # Count matrix import
@@ -293,7 +293,7 @@ cor_wt_p <- ggplot(Full_table, aes(x = log_wt_t, y = log_wt_p)) +
   xlab('log(normalized read count)') +
   ylab('log(protein intensity)') +
   ggtitle('Correlation for strains with wild-type Sup35') +
-  annotate("text", x = 13, y = 4, label = 'tau = 0.2560566 \n p-value < 2.2e-16')
+  annotate("text", x = 12, y = 4, label = 'tau = 0.256')
 
 cor_mut_p <- ggplot(Full_table, aes(x = log_mut_t, y = log_mut_p)) + 
   geom_point() + 
@@ -302,7 +302,7 @@ cor_mut_p <- ggplot(Full_table, aes(x = log_mut_t, y = log_mut_p)) +
   xlab('log(normalized read count)') +
   ylab('log(protein intensity)') +
   ggtitle('Correlation for strains with  sup35-218 mutation') +
-  annotate("text", x = 13, y = 4, label = 'tau = 0.2382156 \n p-value < 2.2e-16')
+  annotate("text", x = 12, y = 4, label = 'tau = 0.238')
 
 plot_grid(cor_wt_p, cor_mut_p, labels = c("B", "C"),
           ncol = 2, nrow = 1)
