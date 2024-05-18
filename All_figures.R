@@ -2,7 +2,16 @@ library(ggrepel)
 library(DESeq2)
 library(ggplot2)
 library(VennDiagram)
+library(clusterProfiler)
 library(org.Sc.sgd.db)
+library(ggpubr)
+library(corrgram)
+library(RColorBrewer)
+library(matrixStats)
+library(ggpmisc)
+library(dplyr)
+library(tidyverse)
+library(cowplot)
 setwd("/media/barbitoff/DATA/Working issues/FizGen/Translation and Genome/rnaseq/paper/sup35n_expression_analysis/")
 
 # Count matrix import
@@ -109,7 +118,6 @@ write.table(up_degs, "0_UP_35_3wt3wt.csv",quote = F,sep = "\t",row.names = F)
 #### GO term enrichment
 
 # Biological process
-library(clusterProfiler)
 gobp_down <- enrichGO(gene = down_degs$gene_id,
                      OrgDb = "org.Sc.sgd.db",
                      keyType = "ORF",
@@ -191,6 +199,7 @@ wilcox.test(Copy_number ~ Gene, qpcr_df[grepl('SUP45', qpcr_df$Gene), ])
 
 
 ### Figure 5
+# A - volcano plot
 proteomics_de <- read.table('DA_Sup35_proteomics.tsv', sep='\t', row.names=1, header=T)
 head(proteomics_de)
 
@@ -206,6 +215,8 @@ ggplot(data=proteomics_de, aes(x=logFC, y=-log10(adj.P.Val), col=regulation)) +
   geom_point() + theme_bw() + geom_text_repel(aes(label = volcano_label)) +
   scale_color_manual(values=c("none" = "#999999", "up" = "#E86850", "down" = "#587498"))
 
+
+# Some additional exploration
 merged_de <- merge(res_df_st3vs3, proteomics_de, by.x='final_id', by.y='row.names')
 head(merged_de)
 
@@ -221,4 +232,77 @@ for (lfc_cut in c(0, 0.5, 1, 2)){
               sum(prot_sign, na.rm=T), sum(rna_sign, na.rm=T), sum(both_sign, na.rm=T)))
 }
 
+# B - correlation plots (by @lavrentiidanilov)
+head(countData)
 
+all_genemap <- select(org.Sc.sgd.db, keys=countData$Geneid, 
+                    columns=c('ORF', 'GENENAME'), keytype="ORF")
+countData$gene_name <- ifelse(is.na(all_genemap$GENENAME), all_genemap$ORF,
+                                          all_genemap$GENENAME)
+head(countData)
+countData_new <- as_data_frame(countData)
+
+wt35_1.3st_sum <- countData_new %>% group_by(gene_name) %>% summarise(wt35_1.3st_sum = sum(wt35_1.3st, na.rm = TRUE))
+wt35_2.3st_sum <- countData_new %>% group_by(gene_name) %>% summarise(wt35_2.3st_sum = sum(wt35_2.3st, na.rm = TRUE))
+wt35_3.3st_sum <- countData_new %>% group_by(gene_name) %>% summarise(wt35_3.3st_sum = sum(wt35_3.3st, na.rm = TRUE))
+wt35_4.3st_sum <- countData_new %>% group_by(gene_name) %>% summarise(wt35_4.3st_sum = sum(wt35_4.3st, na.rm = TRUE))
+
+Mut218_1.3st_sum <- countData_new %>% group_by(gene_name) %>% summarise(Mut218_1.3st_sum = sum(Mut218_1.3st, na.rm = TRUE))
+Mut218_2.3st_sum <- countData_new %>% group_by(gene_name) %>% summarise(Mut218_2.3st_sum = sum(Mut218_2.3st, na.rm = TRUE))
+Mut218_3.3st_sum <- countData_new %>% group_by(gene_name) %>% summarise(Mut218_3.3st_sum = sum(Mut218_3.3st, na.rm = TRUE))
+
+#put all data frames into list
+df_list <- list(wt35_1.3st_sum, wt35_2.3st_sum, wt35_3.3st_sum, wt35_4.3st_sum, 
+                Mut218_1.3st_sum, Mut218_2.3st_sum, Mut218_3.3st_sum)      
+#merge all data frames together
+total_trascriptome <- bind_cols(df_list)[, (1:7)*2]
+total_trascriptome <- apply(total_trascriptome, 2, function(x) x/countData_new$Length)
+total_trascriptome <- apply(total_trascriptome, 2, function(x) x/sum(x) * 1000000)
+total_trascriptome <- bind_cols(wt35_1.3st_sum$gene_name, total_trascriptome)
+colnames(total_trascriptome)[1] = 'Protein'
+head(total_trascriptome)
+total_trascriptome <- replace(total_trascriptome, total_trascriptome==0, NA)
+
+total_trans_finall <- na.omit(total_trascriptome)
+total_trans_finall$Median_WT_T = rowMedians(as.matrix(total_trans_finall[,c(2:5)]))
+total_trans_finall$Median_MUT_T = rowMedians(as.matrix(total_trans_finall[,c(6:8)]))
+
+data_prot <- read.csv('Sup35_report_unique_genes_matrix.tsv', sep = '\t')
+data_prot[is.na(data_prot)] <-  0
+data_prot$Median_WT_P = rowMedians(as.matrix(data_prot[,c(6:9)]))
+data_prot$Median_MUT_P = rowMedians(as.matrix(data_prot[,c(2:5)]))
+
+TranscriptomeData <-  total_trans_finall[,c(1, 9:10)]
+ProteomeData = data_prot[, c(1,10:11)]
+colnames(ProteomeData) <- c('Protein', 'Median_WT_P', 'Median_MUT_P')
+Full_table <- merge(TranscriptomeData, ProteomeData, by="Protein")
+
+Full_table = Full_table[apply(Full_table[, 2:5], 1, function(x) sum(x == 0)) == 0, ]
+Full_table$log_wt_t = log(Full_table$Median_WT_T + 1, 2)
+Full_table$log_mut_t = log(Full_table$Median_MUT_T + 1, 2)
+Full_table$log_wt_p = log(Full_table$Median_WT_P + 1, 2)
+Full_table$log_mut_p = log(Full_table$Median_MUT_P + 1, 2)
+
+cor.test(Full_table$log_wt_t, Full_table$log_wt_p, method = 'kendall')
+cor.test(Full_table$log_mut_t, Full_table$log_mut_p, method = 'kendall')
+
+cor_wt_p <- ggplot(Full_table, aes(x = log_wt_t, y = log_wt_p)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se=F) +
+  theme_bw() +
+  xlab('log(normalized read count)') +
+  ylab('log(protein intensity)') +
+  ggtitle('Correlation for strains with wild-type Sup35') +
+  annotate("text", x = 13, y = 4, label = 'tau = 0.2560566 \n p-value < 2.2e-16')
+
+cor_mut_p <- ggplot(Full_table, aes(x = log_mut_t, y = log_mut_p)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se=F) +
+  theme_bw() +
+  xlab('log(normalized read count)') +
+  ylab('log(protein intensity)') +
+  ggtitle('Correlation for strains with  sup35-218 mutation') +
+  annotate("text", x = 13, y = 4, label = 'tau = 0.2382156 \n p-value < 2.2e-16')
+
+plot_grid(cor_wt_p, cor_mut_p, labels = c("B", "C"),
+          ncol = 2, nrow = 1)
